@@ -1,0 +1,16 @@
+{
+  "name": "threadco-storefront",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Thread & Co. web store and smart-mirror UI with live prices",
+  "scripts": { "dev": "vite", "build": "tsc && vite build" },
+  "dependencies": {
+    "axios": "0.21.1",
+    "express": "4.17.1",
+    "jsonwebtoken": "8.5.1",
+    "lodash": "4.17.20",
+    "react": "17.0.2",
+    "react-dom": "17.0.2"
+  },
+  "devDependencies": { "typescript": "4.9.5", "vite": "4.0.0" }
+}

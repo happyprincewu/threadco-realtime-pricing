@@ -1,0 +1,10 @@
+pricing:
+  kafka:
+    bootstrap: kafka:9092
+    topics:
+      demand: demand.signals
+      updates: price.updates
+  guardrails:
+    max-change: 0.10
+    margin-floor: 0.35
+    approval-threshold: 0.08

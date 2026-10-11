@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thread &amp; Co. Live Pricing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: retail app shell — brand bar, store floor (products + mirror) on the left, live operations rail on the right, "what's inside" strip below */
+:root{
+  --bg:#f4f5f3; --surface:#ffffff; --sunk:#eceeeb; --line:#d9ddd8;
+  --ink:#16191c; --muted:#5d6560; --accent:#2f4bd8; --accent-ink:#ffffff;
+  --up:#1d7a46; --up-bg:#e3f4ea; --warn:#9a6200; --warn-bg:#fdf1d8; --bad:#b4232c; --bad-bg:#fbe4e5;
+  --mirror:#101315; --mirror-screen:#e9f1f8;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Sans 3","Segoe UI",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#121416; --surface:#1b1e21; --sunk:#16191b; --line:#2c3135;
+  --ink:#eef0ee; --muted:#9aa39e; --accent:#7f95ff; --accent-ink:#0d1020;
+  --up:#5fd08e; --up-bg:#163324; --warn:#f0bf5a; --warn-bg:#3a2d12; --bad:#ff8a90; --bad-bg:#3d1a1d;
+  --mirror:#050607; --mirror-screen:#dfe9f2; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121416; --surface:#1b1e21; --sunk:#16191b; --line:#2c3135;
+  --ink:#eef0ee; --muted:#9aa39e; --accent:#7f95ff; --accent-ink:#0d1020;
+  --up:#5fd08e; --up-bg:#163324; --warn:#f0bf5a; --warn-bg:#3a2d12; --bad:#ff8a90; --bad-bg:#3d1a1d;
+  --mirror:#050607; --mirror-screen:#dfe9f2; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45;margin:0}
+.wrap{max-width:1240px;margin:0 auto;padding-inline:20px;padding-block:0 32px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* brand bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar-in{max-width:1240px;margin:0 auto;padding:12px 20px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.brand{font-family:var(--display);font-weight:800;font-size:20px;letter-spacing:-.2px}
+.nav{display:flex;gap:18px;color:var(--muted);font-size:14px;flex-wrap:wrap}
+.nav b{color:var(--ink);font-weight:600}
+.ctx{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{font-size:12.5px;padding:3px 10px;border-radius:999px;background:var(--sunk);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--up);background:var(--up-bg);border-color:transparent;font-weight:600}
+.live i{width:7px;height:7px;border-radius:50%;background:var(--up);display:block}
+.live.paused{color:var(--muted);background:var(--sunk)} .live.paused i{background:var(--muted)}
+
+/* control strip */
+.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:20px 0 16px}
+.controls h1{font-size:26px;letter-spacing:-.3px;margin-right:auto}
+.controls h1 small{display:block;font-family:var(--body);font-weight:400;font-size:14.5px;color:var(--muted);letter-spacing:0;margin-top:2px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;border-radius:8px;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.meter{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+.meter .lab{font-size:12.5px;color:var(--muted)}
+.meter .val{font-family:var(--mono);font-size:18px;font-weight:500;min-width:3.2ch}
+.meter .track{width:120px;height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.meter .fill{display:block;height:100%;width:25%;background:var(--accent);transition:width .5s}
+
+/* main grid */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+@media (max-width:960px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.ph{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:14px 16px 10px}
+.ph h2{font-size:16px}
+.ph span{font-size:12.5px;color:var(--muted)}
+
+/* products */
+.products{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:640px){.products{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;text-align:left;padding:0;color:inherit;transition:border-color .2s,box-shadow .2s}
+.card[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.card img{display:block;width:100%;aspect-ratio:300/300;object-fit:cover;object-position:center 40%;background:#e8e8e8}
+.cbody{padding:12px 14px 14px;display:grid;gap:4px}
+.cname{font-weight:600}
+.cprice{display:flex;align-items:baseline;gap:8px}
+.cprice .p{font-family:var(--display);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums}
+.delta{font-family:var(--mono);font-size:12.5px;font-weight:500}
+.delta.up{color:var(--up)} .delta.flat{color:var(--muted)}
+.badge{justify-self:start;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--sunk);color:var(--muted)}
+.badge.hot{background:var(--bad-bg);color:var(--bad)}
+.badge.pend{background:var(--warn-bg);color:var(--warn)}
+.flash{animation:flash 1.2s ease}
+@keyframes flash{0%{background:var(--up-bg)}100%{background:transparent}}
+
+/* store floor row: mirror + why */
+.floor{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;margin-top:20px;align-items:start}
+@media (max-width:760px){.floor{grid-template-columns:minmax(0,1fr)}}
+.mirror{background:var(--mirror);border-radius:16px;padding:12px;max-width:300px;width:100%}
+.mscreen{background:var(--mirror-screen);color:#16191c;border-radius:6px;overflow:hidden}
+.mhead{display:flex;justify-content:space-between;padding:10px 14px;background:#d6e6f3;font-size:12px;font-weight:600}
+.mname{text-align:center;font-family:var(--display);font-weight:700;font-size:18px;padding:10px 8px 4px}
+.mimg{display:block;width:62%;margin:0 auto;border-radius:6px;aspect-ratio:1;object-fit:cover}
+.mrows{padding:6px 14px 12px;display:grid;gap:0}
+.mrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #c8d9e7;font-size:13.5px}
+.mrow b{font-variant-numeric:tabular-nums}
+.mprice{display:flex;align-items:baseline;gap:8px;padding:10px 0 8px}
+.mprice .p{font-family:var(--display);font-weight:800;font-size:26px;font-variant-numeric:tabular-nums}
+.mprice .delta.up{color:#1d7a46}
+.lock{width:100%;border:0;border-radius:4px;background:#2f4bd8;color:#fff;padding:10px;font-weight:600;font-size:14px}
+.lock[aria-pressed="true"]{background:#1d7a46}
+.mcap{font-size:12px;color:var(--muted);margin-top:8px}
+
+.why{padding:16px 18px}
+.why h2{font-size:20px;margin-bottom:4px}
+.why .sub{color:var(--muted);font-size:14px;margin-bottom:12px}
+.sig{display:grid;grid-template-columns:120px minmax(0,1fr);gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.sig dt{font-weight:600}
+.sig dd{margin:0}
+.guard{margin-top:12px;font-size:13.5px;color:var(--muted);background:var(--sunk);border-radius:8px;padding:10px 12px}
+.guard b{color:var(--ink)}
+
+/* rail */
+.rail{display:grid;gap:20px}
+.feed{list-style:none;margin:0;padding:0 16px 12px;max-height:248px;overflow:auto}
+.feed li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+.feed .t{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.feed .topic{font-family:var(--mono);font-size:11.5px;color:var(--accent)}
+.feed .what{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dec{list-style:none;margin:0;padding:0 16px 14px;display:grid;gap:8px}
+.dec li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px;font-size:13.5px}
+.dec .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.st{font-size:11.5px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:999px;text-transform:uppercase}
+.st.APPLIED{background:var(--up-bg);color:var(--up)}
+.st.PENDING_APPROVAL{background:var(--warn-bg);color:var(--warn)}
+.st.REJECTED{background:var(--bad-bg);color:var(--bad)}
+.dec .why2{color:var(--muted)}
+.dec .act{display:flex;gap:8px;margin-top:4px}
+.dec .act .btn{padding:5px 10px;font-size:13px}
+.empty{color:var(--muted);font-size:13.5px;padding:0 16px 14px}
+
+/* inside */
+.inside{margin-top:24px}
+.inside h2{font-size:18px;margin-bottom:10px}
+.parts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:860px){.parts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.parts{grid-template-columns:minmax(0,1fr)}}
+.part{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:4px;align-content:start}
+.part .k{font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted);font-weight:600}
+.part h3{font-size:15px}
+.part p{margin:0;font-size:13.5px;color:var(--muted)}
+.part code{font-family:var(--mono);font-size:12px;color:var(--ink)}
+.foot{margin-top:18px;font-size:12.5px;color:var(--muted);display:flex;gap:12px;flex-wrap:wrap;justify-content:space-between}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+
+<header class="bar">
+  <div class="bar-in">
+    <span class="brand">Thread &amp; Co.</span>
+    <nav class="nav" aria-label="Store"><b>Home</b><span>Shop</span><span>New arrivals</span><span>Stores</span></nav>
+    <div class="ctx">
+      <span class="chip">Atlanta · Peachtree St</span>
+      <span class="chip">IBM TechXchange · Day 1</span>
+      <span class="chip mono" id="clock">10:14:30</span>
+      <span class="chip live paused" id="livechip"><i></i><span id="livetxt">Normal demand</span></span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="controls">
+    <h1>Real-time pricing<small>Prices follow live demand in each store and online, inside Thread &amp; Co.'s pricing guardrails.</small></h1>
+    <div class="meter" aria-label="Atlanta demand versus a normal hour">
+      <span class="lab">Atlanta demand</span><span class="val" id="mult">1.0×</span>
+      <span class="track"><span class="fill" id="multfill"></span></span>
+    </div>
+    <button class="btn primary" id="play">Start the TechXchange rush</button>
+    <button class="btn" id="reset">Reset</button>
+  </div>
+
+  <div class="grid">
+    <section aria-label="Store floor">
+      <div class="products" id="products"></div>
+
+      <div class="floor">
+        <div>
+          <div class="mirror" aria-label="Smart mirror in the Atlanta store">
+            <div class="mscreen">
+              <div class="mhead"><span>←</span><span>Thread &amp; Co. · Atlanta</span></div>
+              <div class="mname" id="mname"></div>
+              <img class="mimg" id="mimg" alt="">
+              <div class="mrows">
+                <div class="mrow"><span>Left in this store</span><b id="mstock"></b></div>
+                <div class="mrow"><span>Sold, last 15 min</span><b id="msold"></b></div>
+                <div class="mrow"><span>On the way</span><b id="mway"></b></div>
+                <div class="mprice">Price <span class="p" id="mprice"></span><span class="delta" id="mdelta"></span></div>
+                <button class="lock" id="lock" aria-pressed="false">Lock this price for 30 min</button>
+              </div>
+            </div>
+          </div>
+          <div class="mcap">Smart mirror next to the rack. Same price as the website, updated from the same stream.</div>
+        </div>
+
+        <div class="panel why" aria-live="polite">
+          <h2 id="whytitle">Why this price?</h2>
+          <div class="sub" id="whysub"></div>
+          <dl id="whylist" style="margin:0"></dl>
+          <div class="guard"><b>Guardrails:</b> a price moves at most 10% at a time, never below a 35% margin, and any move above 8% waits for a merchandiser to approve it.</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="rail">
+      <div class="panel">
+        <div class="ph"><h2>Live demand</h2><span class="mono">demand.signals</span></div>
+        <ul class="feed" id="feed"></ul>
+      </div>
+      <div class="panel">
+        <div class="ph"><h2>Pricing decisions</h2><span>by the pricing agent</span></div>
+        <ul class="dec" id="dec"></ul>
+        <div class="empty" id="decempty">No price changes yet. Demand is normal.</div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="inside" aria-label="What is inside the app">
+    <h2>What's inside the app</h2>
+    <div class="parts">
+      <div class="part"><span class="k">Storefront</span><h3>Web store and smart mirrors</h3><p>TypeScript. Subscribes to live prices from Kafka.</p><p><code>storefront/</code></p></div>
+      <div class="part"><span class="k">Pricing service</span><h3>Guardrails and price events</h3><p>Java. Applies the limits, publishes decisions, writes price history.</p><p><code>pricing-service/</code></p></div>
+      <div class="part"><span class="k">Streaming</span><h3>Kafka topics</h3><p>Demand in, prices out, to every store and the website at once.</p><p><code>demand.signals · price.updates</code></p></div>
+      <div class="part"><span class="k">History</span><h3>Past events and outcomes</h3><p>Lets the agent see how prices worked at earlier events.</p><p><code>event_outcomes</code></p></div>
+    </div>
+    <div class="foot"><span>Built with IBM Bob · runs on Red Hat OpenShift · watched by IBM Concert</span><span>Demo app: fictional retailer, prices simulated in the browser</span></div>
+  </section>
+</main>
+
+<script>
+const TEES={black:"img/tee_black.jpg",earth:"img/tee_earth.jpg",sky:"img/tee_sky.jpg"};
+const BASE = 25.00;
+const P = {
+  black: {name:"Classic Black T-Shirt", img:TEES.black, price:BASE, prev:BASE, stock:31, sold:10, way:0, state:"flat"},
+  earth: {name:"Earth Tone T-Shirt",    img:TEES.earth, price:BASE, prev:BASE, stock:44, sold:8,  way:0, state:"flat"},
+  sky:   {name:"Sky Blue T-Shirt",      img:TEES.sky,   price:BASE, prev:BASE, stock:38, sold:9,  way:0, state:"flat"}
+};
+let sel = "black", mult = 1.0, running = false, timers = [], clockSec = 10*3600+14*60+30, locked = false;
+const $ = id => document.getElementById(id);
+const fmt = n => "$" + n.toFixed(2);
+const pct = (a,b) => { const d = Math.round((a-b)/b*100); return d>0 ? "↑ "+d+"%" : d<0 ? "↓ "+Math.abs(d)+"%" : "no change"; };
+const clockStr = () => { const h=Math.floor(clockSec/3600), m=Math.floor(clockSec%3600/60), s=clockSec%60; return [h,m,s].map(x=>String(x).padStart(2,"0")).join(":"); };
+
+function renderProducts(flashKey){
+  const wrap = $("products"); wrap.innerHTML = "";
+  for (const [k,p] of Object.entries(P)){
+    const b = document.createElement("button");
+    b.className = "card"; b.setAttribute("aria-pressed", k===sel);
+    const d = p.price - BASE;
+    const badge = p.state==="hot" ? '<span class="badge hot">High demand in Atlanta</span>'
+               : p.state==="pend" ? '<span class="badge pend">New price waiting for approval</span>'
+               : p.state==="held" ? '<span class="badge">Price held by guardrails</span>'
+               : '<span class="badge">In stock</span>';
+    b.innerHTML = `<img src="${p.img}" alt="${p.name}">
+      <div class="cbody${flashKey===k?' flash':''}"><span class="cname">${p.name}</span>
+      <span class="cprice"><span class="p">${fmt(p.price)}</span><span class="delta ${d>0?'up':'flat'}">${d>0?pct(p.price,BASE):'base price'}</span></span>${badge}</div>`;
+    b.onclick = () => { sel = k; locked=false; renderAll(); };
+    wrap.appendChild(b);
+  }
+}
+function renderMirror(){
+  const p = P[sel];
+  $("mname").textContent = p.name;
+  $("mimg").src = p.img; $("mimg").alt = p.name;
+  $("mstock").textContent = p.stock;
+  $("msold").textContent = p.sold;
+  $("mway").textContent = p.way ? p.way + " by 1:30 pm" : "—";
+  $("mprice").textContent = fmt(p.price);
+  const d = p.price - BASE; $("mdelta").textContent = d>0 ? pct(p.price,BASE) : ""; $("mdelta").className = "delta " + (d>0?"up":"");
+  $("lock").textContent = locked ? "Price locked at " + fmt(p.price) + " until " + lockUntil() : "Lock this price for 30 min";
+  $("lock").setAttribute("aria-pressed", locked);
+}
+function lockUntil(){ const t = clockSec + 1800; return String(Math.floor(t/3600)).padStart(2,"0")+":"+String(Math.floor(t%3600/60)).padStart(2,"0"); }
+function renderWhy(){
+  const p = P[sel];
+  $("whytitle").textContent = "Why " + fmt(p.price) + "?";
+  $("whysub").textContent = p.name + " · Atlanta store and website";
+  const rows = [
+    ["Demand", mult >= 1.5 ? `${mult.toFixed(1)}× a normal hour in Atlanta right now` : "About normal for a weekday morning"],
+    ["Stock", `${p.stock} left in this store` + (p.way ? `, ${p.way} more arriving from two nearby stores` : "")],
+    ["History", "At the last comparable conference, +8% kept sales steady; +15% cut them by 30%. Demand fell about 60% on day 3."],
+    ["Competitors", "Within $1 of nearby stores"]
+  ];
+  if (sel==="sky" && p.state==="held") rows.push(["Decision","A +15% rise was proposed and blocked: it is more than the 10% limit."]);
+  if (sel==="earth" && p.state==="pend") rows.push(["Decision","+9% is proposed. It is above 8%, so a merchandiser has to approve it."]);
+  $("whylist").innerHTML = rows.map(([k,v]) => `<div class="sig"><dt>${k}</dt><dd>${v}</dd></div>`).join("");
+}
+function renderMeter(){
+  $("mult").textContent = mult.toFixed(1) + "×";
+  $("multfill").style.width = Math.min(100, mult/4*100) + "%";
+  $("clock").textContent = clockStr();
+  const live = $("livechip");
+  live.classList.toggle("paused", mult < 1.5);
+  $("livetxt").textContent = mult >= 1.5 ? "Demand spike · prices live" : "Normal demand";
+}
+function renderAll(flashKey){ renderProducts(flashKey); renderMirror(); renderWhy(); renderMeter(); }
+
+const SKUS = ["black","black","black","earth","sky","black","earth","black","sky"];
+const SOURCES = ["POS · till 3","POS · till 1","web · cart","POS · till 2","web · views","mirror · scan"];
+function addFeed(text, topic="demand.signals"){
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="t">${clockStr()}</span><span class="what">${text}</span><span class="topic">${topic==="price.updates"?"price.updates":""}</span>`;
+  const f = $("feed"); f.prepend(li); while (f.children.length > 40) f.lastChild.remove();
+}
+function addDecision(d){
+  $("decempty").hidden = true;
+  const li = document.createElement("li"); li.id = "d-" + d.key;
+  li.innerHTML = `<div class="top"><b>${P[d.key].name}</b><span class="st ${d.status}">${d.status.replace("_"," ")}</span></div>
+    <div class="mono">${fmt(BASE)} → ${fmt(d.price)} (${d.change})</div><div class="why2">${d.reason}</div>`;
+  if (d.status==="PENDING_APPROVAL"){
+    const act = document.createElement("div"); act.className = "act";
+    const ok = document.createElement("button"); ok.className = "btn primary"; ok.textContent = "Approve";
+    const no = document.createElement("button"); no.className = "btn"; no.textContent = "Reject";
+    ok.onclick = () => { P.earth.price = d.price; P.earth.state = "hot"; li.querySelector(".st").className = "st APPLIED"; li.querySelector(".st").textContent = "APPLIED";
+      li.querySelector(".why2").textContent = "Approved by merchandiser. Live in store and online."; act.remove(); addFeed("Earth Tone T-Shirt → " + fmt(d.price), "price.updates"); renderAll("earth"); };
+    no.onclick = () => { P.earth.state = "flat"; li.querySelector(".st").className = "st REJECTED"; li.querySelector(".st").textContent = "REJECTED";
+      li.querySelector(".why2").textContent = "Rejected by merchandiser. Price stays at base."; act.remove(); renderAll(); };
+    act.append(ok, no); li.appendChild(act);
+  }
+  $("dec").prepend(li);
+}
+
+function step(i){
+  clockSec += 7;
+  if (i < 30) mult = Math.min(4.0, 1.0 + i*0.11);
+  const k = SKUS[i % SKUS.length], p = P[k];
+  const q = 1 + (i % 3 === 0 ? 1 : 0);
+  if (!SOURCES[i%SOURCES.length].startsWith("web")) { p.sold += q; p.stock = Math.max(9, p.stock - q); }
+  addFeed(`${SOURCES[i%SOURCES.length]} · ${p.name.replace(" T-Shirt","")} · ${SOURCES[i%SOURCES.length].includes("views") ? "+38 views" : "qty " + q}`);
+  if (i === 18){
+    P.black.price = 27.00; P.black.state = "hot"; P.black.way = 60; P.black.stock = 9; P.black.sold = 42;
+    addDecision({key:"black", status:"APPLIED", price:27.00, change:"+8%", reason:"4× demand. Inside the limits, so it went live in store and online at once. 60 shirts moved from two slower stores."});
+    addFeed("Classic Black T-Shirt → $27.00", "price.updates");
+    renderAll("black"); return;
+  }
+  if (i === 23){
+    P.sky.state = "held";
+    addDecision({key:"sky", status:"REJECTED", price:28.75, change:"+15%", reason:"More than the 10% limit. History shows +15% cut sales by 30%."});
+  }
+  if (i === 27){
+    P.earth.state = "pend";
+    addDecision({key:"earth", status:"PENDING_APPROVAL", price:27.25, change:"+9%", reason:"Above 8%, so it waits for a merchandiser."});
+  }
+  renderAll();
+}
+function play(){
+  if (running) return; running = true; $("play").disabled = true; $("play").textContent = "Rush in progress…";
+  for (let i=0;i<32;i++) timers.push(setTimeout(() => { step(i); if (i===31){ running=false; $("play").textContent = "Rush complete"; } }, 380*i));
+}
+function reset(){
+  timers.forEach(clearTimeout); timers = []; running = false; mult = 1.0; clockSec = 10*3600+14*60+30; locked = false;
+  Object.assign(P.black,{price:BASE,stock:31,sold:10,way:0,state:"flat"});
+  Object.assign(P.earth,{price:BASE,stock:44,sold:8,way:0,state:"flat"});
+  Object.assign(P.sky,{price:BASE,stock:38,sold:9,way:0,state:"flat"});
+  $("dec").innerHTML = ""; $("decempty").hidden = false; $("feed").innerHTML = "";
+  $("play").disabled = false; $("play").textContent = "Start the TechXchange rush";
+  seedFeed(); renderAll();
+}
+function seedFeed(){
+  const seed = ["POS · till 2 · Classic Black · qty 1","web · views · Sky Blue · +6 views","POS · till 1 · Earth Tone · qty 1","mirror · scan · Classic Black · qty 1","POS · till 3 · Sky Blue · qty 1"];
+  const save = clockSec; clockSec -= 300;
+  seed.forEach(s => { clockSec += 55; addFeed(s); });
+  clockSec = save;
+}
+$("play").onclick = play; $("reset").onclick = reset;
+$("lock").onclick = () => { locked = !locked; renderMirror(); };
+seedFeed(); renderAll();
+</script>
+
+</body>
+</html>
